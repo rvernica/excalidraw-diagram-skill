@@ -14,7 +14,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import struct
 import sys
+import zlib
 from pathlib import Path
 
 
@@ -110,9 +112,12 @@ def render(
     vp_width = min(int(diagram_w), max_width)
     vp_height = max(int(diagram_h), 600)
 
-    # Output path
+    # Output path — default to .excalidraw.png so the file is editable in excalidraw.com
     if output_path is None:
-        output_path = excalidraw_path.with_suffix(".png")
+        output_path = excalidraw_path.with_suffix(".excalidraw.png")
+        if excalidraw_path.suffix == ".excalidraw":
+            # foo.excalidraw -> foo.excalidraw.png
+            output_path = Path(str(excalidraw_path) + ".png")
 
     # Template path (same directory as this script)
     template_path = Path(__file__).parent / "render_template.html"
@@ -166,7 +171,52 @@ def render(
         svg_el.screenshot(path=str(output_path))
         browser.close()
 
+    # Embed the Excalidraw scene JSON into the PNG so the file can be
+    # re-opened and edited in excalidraw.com (drag-and-drop).
+    _embed_excalidraw_in_png(output_path, raw)
+
     return output_path
+
+
+def _embed_excalidraw_in_png(png_path: Path, scene_json: str) -> None:
+    """Embed Excalidraw scene JSON into a PNG as a tEXt chunk.
+
+    Uses the same format as Excalidraw's own export: a tEXt chunk with
+    keyword ``application/vnd.excalidraw+json`` containing a JSON envelope
+    with zlib-compressed scene data encoded as a byte string.
+    """
+    png_data = png_path.read_bytes()
+
+    # Compress the scene JSON
+    compressed = zlib.compress(scene_json.encode("utf-8"))
+
+    # Convert to byte string (each byte as a Latin-1 character)
+    bstring = "".join(chr(b) for b in compressed)
+
+    # Wrap in the envelope Excalidraw expects
+    envelope = json.dumps(
+        {"version": "1", "encoding": "bstring", "compressed": True, "encoded": bstring}
+    )
+
+    # Build the tEXt chunk
+    keyword = b"application/vnd.excalidraw+json"
+    text_data = keyword + b"\x00" + envelope.encode("latin-1")
+    chunk_type = b"tEXt"
+    chunk_crc = zlib.crc32(chunk_type + text_data) & 0xFFFFFFFF
+    chunk = struct.pack(">I", len(text_data)) + chunk_type + text_data + struct.pack(">I", chunk_crc)
+
+    # Insert before IEND chunk
+    pos = 8  # skip PNG signature
+    while pos < len(png_data):
+        length = struct.unpack(">I", png_data[pos : pos + 4])[0]
+        ctype = png_data[pos + 4 : pos + 8]
+        if ctype == b"IEND":
+            break
+        pos += 4 + 4 + length + 4
+    else:
+        return  # no IEND found, skip embedding
+
+    png_path.write_bytes(png_data[:pos] + chunk + png_data[pos:])
 
 
 def main() -> None:
