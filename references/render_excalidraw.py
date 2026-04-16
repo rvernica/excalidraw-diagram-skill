@@ -112,12 +112,11 @@ def render(
     vp_width = min(int(diagram_w), max_width)
     vp_height = max(int(diagram_h), 600)
 
-    # Output path — default to .excalidraw.png so the file is editable in excalidraw.com
+    # Output path — default to .excalidraw.png so the file is editable in excalidraw.com.
+    # Build via string concatenation on the stemmed path (Path.with_suffix rejects
+    # embedded dots in Python 3.14+).
     if output_path is None:
-        output_path = excalidraw_path.with_suffix(".excalidraw.png")
-        if excalidraw_path.suffix == ".excalidraw":
-            # foo.excalidraw -> foo.excalidraw.png
-            output_path = Path(str(excalidraw_path) + ".png")
+        output_path = Path(str(excalidraw_path.with_suffix("")) + ".excalidraw.png")
 
     # Template path (same directory as this script)
     template_path = Path(__file__).parent / "render_template.html"
@@ -191,7 +190,7 @@ def _embed_excalidraw_in_png(png_path: Path, scene_json: str) -> None:
     compressed = zlib.compress(scene_json.encode("utf-8"))
 
     # Convert to byte string (each byte as a Latin-1 character)
-    bstring = "".join(chr(b) for b in compressed)
+    bstring = compressed.decode("latin-1")
 
     # Wrap in the envelope Excalidraw expects
     envelope = json.dumps(
@@ -207,14 +206,25 @@ def _embed_excalidraw_in_png(png_path: Path, scene_json: str) -> None:
 
     # Insert before IEND chunk
     pos = 8  # skip PNG signature
-    while pos < len(png_data):
+    while pos + 8 <= len(png_data):
         length = struct.unpack(">I", png_data[pos : pos + 4])[0]
         ctype = png_data[pos + 4 : pos + 8]
         if ctype == b"IEND":
             break
-        pos += 4 + 4 + length + 4
+        next_pos = pos + 4 + 4 + length + 4
+        if next_pos > len(png_data):
+            print(
+                f"WARNING: Malformed PNG at {png_path} — scene JSON not embedded.",
+                file=sys.stderr,
+            )
+            return
+        pos = next_pos
     else:
-        return  # no IEND found, skip embedding
+        print(
+            f"WARNING: No IEND chunk in {png_path} — scene JSON not embedded.",
+            file=sys.stderr,
+        )
+        return
 
     png_path.write_bytes(png_data[:pos] + chunk + png_data[pos:])
 
@@ -222,7 +232,7 @@ def _embed_excalidraw_in_png(png_path: Path, scene_json: str) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Render Excalidraw JSON to PNG")
     parser.add_argument("input", type=Path, help="Path to .excalidraw JSON file")
-    parser.add_argument("--output", "-o", type=Path, default=None, help="Output PNG path (default: same name with .png)")
+    parser.add_argument("--output", "-o", type=Path, default=None, help="Output PNG path (default: same name with .excalidraw.png)")
     parser.add_argument("--scale", "-s", type=int, default=2, help="Device scale factor (default: 2)")
     parser.add_argument("--width", "-w", type=int, default=1920, help="Max viewport width (default: 1920)")
     args = parser.parse_args()

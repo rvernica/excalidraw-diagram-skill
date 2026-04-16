@@ -454,7 +454,7 @@ You cannot judge a diagram from JSON alone. After generating or editing the Exca
 cd .claude/skills/excalidraw-diagram/references && uv run python render_excalidraw.py <path-to-file.excalidraw>
 ```
 
-This outputs a PNG next to the `.excalidraw` file. Then use the **Read tool** on the PNG to actually view it.
+This outputs a `.excalidraw.png` file next to the `.excalidraw` file — a PNG with the scene JSON embedded so it can be dragged back into excalidraw.com for further editing. Then use the **Read tool** on the PNG to actually view it.
 
 ### The Loop
 
