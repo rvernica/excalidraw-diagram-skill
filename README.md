@@ -63,3 +63,8 @@ uv run --group dev pytest        # run the tests
 pre-commit install               # enable the ruff hook locally
 pre-commit run --all-files       # lint + format everything
 ```
+
+The `render()` tests check the raster's *structural* correctness — a valid
+PNG, positive dimensions, and a lossless scene round-trip — not pixel-level
+visual fidelity. CI runs a single Python version (3.14); the scripts target
+`>=3.11` but lower versions are not exercised in CI.
