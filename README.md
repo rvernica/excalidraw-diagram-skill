@@ -47,4 +47,19 @@ excalidraw-diagram/
     json-schema.md                  # Excalidraw JSON format reference
     render_offline.py               # PEP 723 uv-script: .excalidraw -> PNG with scene embed
     extract_scene.py                # stdlib script: recover editable scene JSON from a .excalidraw.png
+  tests/                            # pytest suite for the two scripts
+  pyproject.toml                    # dev deps (pytest, cairosvg) + ruff config
+  .pre-commit-config.yaml           # ruff lint + format
+  .github/workflows/ci.yml          # runs the tests and lint on push/PR
+```
+
+## Development
+
+The scripts are covered by a pytest suite. `cairosvg` needs the system cairo
+library (`libcairo2` on Debian/Ubuntu, usually already present elsewhere).
+
+```bash
+uv run --group dev pytest        # run the tests
+pre-commit install               # enable the ruff hook locally
+pre-commit run --all-files       # lint + format everything
 ```

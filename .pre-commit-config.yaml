@@ -1,0 +1,9 @@
+# Run `pre-commit install` once to enable, or `pre-commit run --all-files`.
+# Config for ruff lives in pyproject.toml ([tool.ruff]).
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.22
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format

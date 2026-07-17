@@ -1,0 +1,23 @@
+[project]
+name = "excalidraw-diagram-skill"
+version = "0"
+description = "Tests and tooling for the Excalidraw diagram skill scripts."
+requires-python = ">=3.11"
+
+# The skill ships as self-contained PEP 723 uv-scripts, so this project is not
+# itself a package — it only exists to pin dev tooling and its config.
+[tool.uv]
+package = false
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "cairosvg>=2.7",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

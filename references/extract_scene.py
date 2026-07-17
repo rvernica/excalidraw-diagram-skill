@@ -49,8 +49,8 @@ def iter_chunks(png: bytes):
     pos = 8
     n = len(png)
     while pos + 8 <= n:
-        (length,) = struct.unpack(">I", png[pos:pos + 4])
-        ctype = png[pos + 4:pos + 8]
+        (length,) = struct.unpack(">I", png[pos : pos + 4])
+        ctype = png[pos + 4 : pos + 8]
         data_start = pos + 8
         data_end = data_start + length
         if data_end + 4 > n:
@@ -139,9 +139,7 @@ def recover_scene(png: bytes) -> tuple[str, dict]:
     except json.JSONDecodeError as exc:
         raise SceneError(f"recovered scene is not valid JSON: {exc}") from exc
     if scene.get("type") != "excalidraw":
-        raise SceneError(
-            f"recovered JSON is not an Excalidraw scene (type={scene.get('type')!r})"
-        )
+        raise SceneError(f"recovered JSON is not an Excalidraw scene (type={scene.get('type')!r})")
     return scene_json, scene
 
 
@@ -172,8 +170,10 @@ def print_info(png_path: Path) -> None:
     by_type: dict[str, int] = {}
     for el in elements:
         by_type[el.get("type", "?")] = by_type.get(el.get("type", "?"), 0) + 1
-    print(f"  -> scene version {scene.get('version')}, "
-          f"{len(elements)} elements: {by_type}", file=sys.stderr)
+    print(
+        f"  -> scene version {scene.get('version')}, {len(elements)} elements: {by_type}",
+        file=sys.stderr,
+    )
 
 
 def main() -> None:
@@ -182,16 +182,19 @@ def main() -> None:
     )
     parser.add_argument("png", type=Path, help="path to a .excalidraw.png file")
     parser.add_argument(
-        "-o", "--output",
+        "-o",
+        "--output",
         help="write scene JSON here; '-' for stdout (default), "
-             "'auto' for a sibling .excalidraw file",
+        "'auto' for a sibling .excalidraw file",
     )
     parser.add_argument(
-        "--pretty", action="store_true",
+        "--pretty",
+        action="store_true",
         help="re-serialize with 2-space indentation (default: exact bytes)",
     )
     parser.add_argument(
-        "--info", action="store_true",
+        "--info",
+        action="store_true",
         help="print PNG chunk layout + scene summary to stderr and exit",
     )
     args = parser.parse_args()
@@ -223,8 +226,9 @@ def main() -> None:
 
     if args.output == "auto":
         name = args.png.name
-        stem = name[:-len(".excalidraw.png")] if name.endswith(".excalidraw.png") \
-            else args.png.stem
+        stem = (
+            name[: -len(".excalidraw.png")] if name.endswith(".excalidraw.png") else args.png.stem
+        )
         out_path = args.png.with_name(stem + ".excalidraw")
     else:
         out_path = Path(args.output)

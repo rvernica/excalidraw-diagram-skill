@@ -39,21 +39,30 @@ from pathlib import Path
 
 # ---------- Bounding box ----------
 
+
 def compute_bounding_box(elements: list[dict]) -> tuple[float, float, float, float]:
-    min_x = float("inf"); min_y = float("inf")
-    max_x = float("-inf"); max_y = float("-inf")
+    min_x = float("inf")
+    min_y = float("inf")
+    max_x = float("-inf")
+    max_y = float("-inf")
     for el in elements:
         if el.get("isDeleted"):
             continue
-        x = el.get("x", 0); y = el.get("y", 0)
-        w = el.get("width", 0); h = el.get("height", 0)
+        x = el.get("x", 0)
+        y = el.get("y", 0)
+        w = el.get("width", 0)
+        h = el.get("height", 0)
         if el.get("type") in ("arrow", "line") and "points" in el:
             for px, py in el["points"]:
-                min_x = min(min_x, x + px); min_y = min(min_y, y + py)
-                max_x = max(max_x, x + px); max_y = max(max_y, y + py)
+                min_x = min(min_x, x + px)
+                min_y = min(min_y, y + py)
+                max_x = max(max_x, x + px)
+                max_y = max(max_y, y + py)
         else:
-            min_x = min(min_x, x); min_y = min(min_y, y)
-            max_x = max(max_x, x + abs(w)); max_y = max(max_y, y + abs(h))
+            min_x = min(min_x, x)
+            min_y = min(min_y, y)
+            max_x = max(max_x, x + abs(w))
+            max_y = max(max_y, y + abs(h))
     if min_x == float("inf"):
         return (0, 0, 800, 600)
     return (min_x, min_y, max_x, max_y)
@@ -84,9 +93,9 @@ def _stroke_attrs(el: dict) -> str:
     style = el.get("strokeStyle", "solid")
     dash = None
     if style == "dashed":
-        dash = f"{sw*4},{sw*3}"
+        dash = f"{sw * 4},{sw * 3}"
     elif style == "dotted":
-        dash = f"{sw},{sw*2}"
+        dash = f"{sw},{sw * 2}"
     opacity = float(el.get("opacity", 100)) / 100.0
     return (
         _attr("stroke", stroke)
@@ -123,16 +132,13 @@ def render_ellipse(el: dict) -> str:
     w, h = el.get("width", 0), el.get("height", 0)
     cx, cy = x + w / 2, y + h / 2
     rx, ry = abs(w) / 2, abs(h) / 2
-    return (
-        f'<ellipse cx="{cx}" cy="{cy}" rx="{rx}" ry="{ry}"'
-        f'{_stroke_attrs(el)}{_transform(el)} />'
-    )
+    return f'<ellipse cx="{cx}" cy="{cy}" rx="{rx}" ry="{ry}"{_stroke_attrs(el)}{_transform(el)} />'
 
 
 def render_diamond(el: dict) -> str:
     x, y = el.get("x", 0), el.get("y", 0)
     w, h = el.get("width", 0), el.get("height", 0)
-    pts = f"{x+w/2},{y} {x+w},{y+h/2} {x+w/2},{y+h} {x},{y+h/2}"
+    pts = f"{x + w / 2},{y} {x + w},{y + h / 2} {x + w / 2},{y + h} {x},{y + h / 2}"
     return f'<polygon points="{pts}"{_stroke_attrs(el)}{_transform(el)} />'
 
 
@@ -161,7 +167,8 @@ def render_line(el: dict, is_arrow: bool = False) -> str:
     if len(pts) < 2:
         return ""
     # polylines should not fill
-    el_no_fill = dict(el); el_no_fill["backgroundColor"] = "transparent"
+    el_no_fill = dict(el)
+    el_no_fill["backgroundColor"] = "transparent"
     attrs = _stroke_attrs(el_no_fill)
     path_pts = " ".join(f"{px:.2f},{py:.2f}" for px, py in pts)
     out = f'<polyline points="{path_pts}"{attrs}{_transform(el)} />'
@@ -178,8 +185,10 @@ def render_line(el: dict, is_arrow: bool = False) -> str:
 
 
 def render_text(el: dict) -> str:
-    x = el.get("x", 0); y = el.get("y", 0)
-    w = el.get("width", 0); h = el.get("height", 0)
+    x = el.get("x", 0)
+    y = el.get("y", 0)
+    w = el.get("width", 0)
+    h = el.get("height", 0)
     text = el.get("text", "") or ""
     font_size = el.get("fontSize", 16)
     line_height = el.get("lineHeight", 1.25)
@@ -217,7 +226,7 @@ def render_text(el: dict) -> str:
     return (
         f'<text font-family="{family}" font-size="{font_size}" '
         f'fill="{color}" opacity="{opacity}" text-anchor="{anchor}"'
-        f'{_transform(el)}>{"".join(tspans)}</text>'
+        f"{_transform(el)}>{''.join(tspans)}</text>"
     )
 
 
@@ -252,12 +261,13 @@ def build_svg(data: dict, padding: int = 80) -> tuple[str, int, int]:
         f'viewBox="0 0 {w} {h}">'
         f'<rect width="100%" height="100%" fill="{bg}" />'
         f'<g transform="translate({tx:.2f}, {ty:.2f})">{body}</g>'
-        f'</svg>'
+        f"</svg>"
     )
     return svg, w, h
 
 
 # ---------- PNG scene embedding (format documented in SKILL.md) ----------
+
 
 def embed_excalidraw_in_png(png_path: Path, scene_json: str) -> None:
     """Embed scene JSON as a tEXt chunk so excalidraw.com can re-open the PNG.
@@ -279,14 +289,13 @@ def embed_excalidraw_in_png(png_path: Path, scene_json: str) -> None:
     chunk_type = b"tEXt"
     chunk_crc = zlib.crc32(chunk_type + text_data) & 0xFFFFFFFF
     scene_chunk = (
-        struct.pack(">I", len(text_data)) + chunk_type + text_data
-        + struct.pack(">I", chunk_crc)
+        struct.pack(">I", len(text_data)) + chunk_type + text_data + struct.pack(">I", chunk_crc)
     )
     out = bytearray(png_data[:8])
     pos = 8
     while pos < len(png_data):
-        length = struct.unpack(">I", png_data[pos:pos + 4])[0]
-        ctype = png_data[pos + 4:pos + 8]
+        length = struct.unpack(">I", png_data[pos : pos + 4])[0]
+        ctype = png_data[pos + 4 : pos + 8]
         end = pos + 8 + length + 4
         chunk_bytes = png_data[pos:end]
         if ctype in (b"tEXt", b"iTXt", b"zTXt"):
@@ -300,6 +309,7 @@ def embed_excalidraw_in_png(png_path: Path, scene_json: str) -> None:
 
 
 # ---------- Driver ----------
+
 
 def validate(data: dict) -> list[str]:
     errs: list[str] = []
@@ -359,9 +369,7 @@ def render(input_path: Path, output_path: Path | None, scale: int) -> Path:
 
 
 def main() -> None:
-    p = argparse.ArgumentParser(
-        description="Offline Excalidraw -> PNG renderer with scene embed"
-    )
+    p = argparse.ArgumentParser(description="Offline Excalidraw -> PNG renderer with scene embed")
     p.add_argument("input", type=Path)
     p.add_argument("--output", "-o", type=Path, default=None)
     p.add_argument("--scale", "-s", type=int, default=2)
