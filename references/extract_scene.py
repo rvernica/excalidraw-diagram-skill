@@ -127,9 +127,12 @@ def decode_envelope(envelope_str: str) -> str:
     return raw.decode("utf-8")
 
 
-def extract_scene(png_path: Path) -> dict:
-    """Read a PNG and return the parsed Excalidraw scene dict."""
-    png = png_path.read_bytes()
+def recover_scene(png: bytes) -> tuple[str, dict]:
+    """Return (raw scene JSON text, parsed scene dict) from PNG bytes.
+
+    Single decode pass: callers that want the exact round-trip bytes and the
+    parsed object both read from one recovery instead of re-decoding.
+    """
     scene_json = decode_envelope(find_scene_text(png))
     try:
         scene = json.loads(scene_json)
@@ -139,7 +142,12 @@ def extract_scene(png_path: Path) -> dict:
         raise SceneError(
             f"recovered JSON is not an Excalidraw scene (type={scene.get('type')!r})"
         )
-    return scene
+    return scene_json, scene
+
+
+def extract_scene(png_path: Path) -> dict:
+    """Read a PNG and return the parsed Excalidraw scene dict."""
+    return recover_scene(png_path.read_bytes())[1]
 
 
 def print_info(png_path: Path) -> None:
@@ -197,12 +205,12 @@ def main() -> None:
             print_info(args.png)
             return
 
-        scene = extract_scene(args.png)
+        scene_json, scene = recover_scene(args.png.read_bytes())
         if args.pretty:
             text = json.dumps(scene, indent=2, ensure_ascii=False)
         else:
             # exact round-trip: re-emit the recovered JSON untouched
-            text = decode_envelope(find_scene_text(args.png.read_bytes()))
+            text = scene_json
     except SceneError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         sys.exit(2)

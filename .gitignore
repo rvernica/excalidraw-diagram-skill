@@ -2,3 +2,5 @@
 *.png
 uv.lock
 __pycache__/
+# roborev snapshots
+/.roborev/

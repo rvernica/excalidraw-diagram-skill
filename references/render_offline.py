@@ -183,7 +183,10 @@ def render_text(el: dict) -> str:
     text = el.get("text", "") or ""
     font_size = el.get("fontSize", 16)
     line_height = el.get("lineHeight", 1.25)
-    family = FONT_FAMILY_MAP.get(el.get("fontFamily", 3), FONT_FAMILY_MAP[3])
+    # Excalidraw's own default fontFamily is 1 (Virgil, hand-drawn); use it for
+    # both missing and unrecognized values so text without an explicit family
+    # renders in the expected font rather than monospace.
+    family = FONT_FAMILY_MAP.get(el.get("fontFamily", 1), FONT_FAMILY_MAP[1])
     color = el.get("strokeColor") or "#000000"
     align = el.get("textAlign", "left")
     valign = el.get("verticalAlign", "top")
@@ -312,10 +315,25 @@ def validate(data: dict) -> list[str]:
 
 
 def render(input_path: Path, output_path: Path | None, scale: int) -> Path:
-    import cairosvg
+    try:
+        import cairosvg
+    except ImportError:
+        print(
+            "ERROR: cairosvg is not available. Run this script via `uv run` so the\n"
+            "       PEP 723 dependencies resolve, e.g.\n"
+            "           uv run references/render_offline.py <file.excalidraw>\n"
+            "       (or make it executable and run ./render_offline.py). Install uv\n"
+            "       from https://docs.astral.sh/uv/ if it isn't on your PATH.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
     raw = input_path.read_text(encoding="utf-8")
-    data = json.loads(raw)
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        print(f"ERROR: Invalid JSON in {input_path}: {exc}", file=sys.stderr)
+        sys.exit(1)
     errs = validate(data)
     if errs:
         for e in errs:
