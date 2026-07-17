@@ -257,7 +257,7 @@ def build_svg(data: dict, padding: int = 80) -> tuple[str, int, int]:
     return svg, w, h
 
 
-# ---------- PNG scene embedding (mirrors render_excalidraw.py) ----------
+# ---------- PNG scene embedding (format documented in SKILL.md) ----------
 
 def embed_excalidraw_in_png(png_path: Path, scene_json: str) -> None:
     """Embed scene JSON as a tEXt chunk so excalidraw.com can re-open the PNG.

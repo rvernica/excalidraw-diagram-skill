@@ -46,4 +46,5 @@ excalidraw-diagram/
     element-templates.md            # JSON templates for each element type
     json-schema.md                  # Excalidraw JSON format reference
     render_offline.py               # PEP 723 uv-script: .excalidraw -> PNG with scene embed
+    extract_scene.py                # stdlib script: recover editable scene JSON from a .excalidraw.png
 ```

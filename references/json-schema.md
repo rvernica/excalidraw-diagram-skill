@@ -10,7 +10,8 @@
 | `arrow` | Connections between shapes |
 | `text` | Labels inside shapes |
 | `line` | Non-arrow connections |
-| `frame` | Grouping containers |
+
+These are the six types the renderer (`render_offline.py`) supports; it ignores any other type. Group related elements with labeled section boundaries and free-floating text, not `frame` elements.
 
 ## Common Properties
 
@@ -25,7 +26,7 @@ All elements share these:
 | `strokeColor` | string | Border color (hex) |
 | `backgroundColor` | string | Fill color (hex or "transparent") |
 | `fillStyle` | string | "solid", "hachure", "cross-hatch" |
-| `strokeWidth` | number | 1, 2, or 4 |
+| `strokeWidth` | number | 1 (thin), 2 (standard), 3 (bold emphasis) |
 | `strokeStyle` | string | "solid", "dashed", "dotted" |
 | `roughness` | number | 0 (smooth), 1 (default), 2 (rough) |
 | `opacity` | number | 0-100 |
