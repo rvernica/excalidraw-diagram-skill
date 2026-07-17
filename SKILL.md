@@ -7,7 +7,11 @@ description: Create Excalidraw diagram JSON files that make visual arguments. Us
 
 Generate `.excalidraw` JSON files that **argue visually**, not just display information.
 
-**Setup:** If the user asks you to set up this skill (renderer, dependencies, etc.), see `README.md` for instructions.
+**Setup:** None required. The renderer is a PEP 723 uv-script — `uv` resolves its one dependency (`cairosvg`) into its cache on first run.
+
+**Offline only:** Never use online services when working with diagrams. Do not fetch or import from `esm.sh`, CDNs, or any other remote source at render or edit time. The bundled renderer is pure Python and does not touch the network. If anything in your workflow would require a network call to render or edit a diagram, stop and ask the user rather than reaching out.
+
+**Editing an existing diagram?** If all you have is a `.excalidraw.png` (the `.excalidraw` JSON often isn't checked in), do NOT redraw it from scratch and do NOT try to edit the pixels. The editable scene is embedded inside the PNG — recover it first. See **Reading & Editing an Existing Diagram** below.
 
 ## Customization
 
@@ -451,10 +455,12 @@ You cannot judge a diagram from JSON alone. After generating or editing the Exca
 ### How to Render
 
 ```bash
-cd .claude/skills/excalidraw-diagram/references && uv run python render_excalidraw.py <path-to-file.excalidraw>
+.claude/skills/excalidraw-diagram/references/render_offline.py <path-to-file.excalidraw>
 ```
 
-This outputs a `.excalidraw.png` file next to the `.excalidraw` file — a PNG with the scene JSON embedded so it can be dragged back into excalidraw.com for further editing. Then use the **Read tool** on the PNG to actually view it.
+(Or `uv run .claude/skills/excalidraw-diagram/references/render_offline.py …` if the script isn't executable on your platform.)
+
+This outputs `<path>.excalidraw.png` next to the source file. The scene JSON is embedded into the PNG as a `tEXt` chunk, so the resulting `.excalidraw.png` can be dragged back into excalidraw.com to keep editing. Use the **Read tool** on the PNG to view it.
 
 ### The Loop
 
@@ -500,13 +506,107 @@ The loop is done when:
 - Spacing is consistent and the composition is balanced
 - You'd be comfortable showing it to someone without caveats
 
-### First-Time Setup
-If the render script hasn't been set up yet:
-```bash
-cd .claude/skills/excalidraw-diagram/references
-uv sync
-uv run playwright install chromium
+### Rendering constraints — no external services
+
+**Never use an online diagram service** (mermaid.ink, kroki.io, quickchart, rendering APIs, etc.) to produce the PNG. Diagrams in this skill are built from local JSON and must be rendered with local tooling.
+
+`render_offline.py` is pure Python (cairosvg + stdlib). It does no network I/O. It does not launch a browser. It handles the six element types the skill emits (`rectangle`, `ellipse`, `diamond`, `arrow`, `line`, `text`) at pragmatic — not pixel-perfect — fidelity. The PNG is the validation surface for the render-view-fix loop; the embedded scene JSON is the canonical artifact and round-trips losslessly through excalidraw.com.
+
+If you ever need to add an alternate renderer (e.g. higher fidelity), it MUST also embed the scene JSON via the same envelope format as `embed_excalidraw_in_png` in `render_offline.py`, otherwise Excalidraw will refuse to re-open the PNG as an editable scene.
+
+### Scene embedding in the PNG (read this before touching the embed path)
+
+The output filename uses the `.excalidraw.png` extension because the file is both a viewable PNG **and** an editable Excalidraw scene. Excalidraw stores the editable scene inside the PNG as a single `tEXt` chunk. Get any detail wrong and users see one of two errors when they drag the PNG back into excalidraw.com:
+
+| Error they see | What it actually means |
+|---|---|
+| **"Image doesn't contain scene"** | No `tEXt` chunk with keyword `application/vnd.excalidraw+json` was found. |
+| **"Error: cannot restore image"** | The chunk exists but the decoder couldn't parse/restore it. |
+
+The format Excalidraw expects (and what `embed_excalidraw_in_png` in `render_offline.py` produces):
+
+- **Chunk:** a single `tEXt` chunk, placed **immediately before `IEND`** (after all `IDAT` chunks).
+- **Keyword:** exactly `application/vnd.excalidraw+json`.
+- **Value:** a JSON envelope, not the raw scene:
+  ```json
+  {"version":"1","encoding":"bstring","compressed":true,"encoded":"<latin-1 string of zlib-deflated scene JSON>"}
+  ```
+  The `encoded` field is the zlib-compressed bytes of the scene JSON interpreted as a Latin-1 string (one byte per character). Not base64. Not raw.
+
+**Chunk hygiene matters.** Excalidraw's decoder finds the *first* `tEXt` chunk in the PNG and errors out if its keyword isn't the excalidraw one. Several PNG producers prepend their own text metadata:
+
+- **Inkscape** writes a `Software` tEXt chunk by default.
+- **ImageMagick / `convert`** may write `date:create`, `date:modify`, etc.
+- **PIL with `PngInfo`** only writes what you give it, but if you load-then-save a PNG it can preserve existing chunks.
+
+So: when embedding, **strip all existing `tEXt`/`iTXt`/`zTXt` chunks** and then insert the scene chunk. `embed_excalidraw_in_png` does this; any custom renderer must do the same.
+
+**Fast diagnosis.** To see what's actually in a PNG:
+
+```python
+import struct
+data = open("diagram.png", "rb").read()
+off = 8
+while off < len(data):
+    length = struct.unpack(">I", data[off:off+4])[0]
+    ctype = data[off+4:off+8]
+    print(f"{ctype.decode():5s}  len={length}")
+    off += 12 + length
 ```
+
+A healthy Excalidraw-compatible PNG has exactly: `IHDR`, N × `IDAT`, `tEXt` (excalidraw keyword), `IEND`. Anything else and users will hit one of the errors above.
+
+If you need a known-good reference, any PNG exported from excalidraw.com has this layout — inspect it as above to confirm the format before modifying the embedder.
+
+### First-Time Setup
+None. `render_offline.py` uses PEP 723 inline dependencies — `uv` resolves `cairosvg` on first invocation. If `uv` isn't on the PATH, install it from https://docs.astral.sh/uv/.
+
+---
+
+## Reading & Editing an Existing Diagram
+
+A `.excalidraw.png` is two things at once: a **viewable PNG** and an **editable scene** embedded as a `tEXt` chunk (see *Scene embedding in the PNG* above). That gives you two independent ways to read one — pick based on what you actually need.
+
+### Visual vs. Extract — pick per need
+
+| You need to… | Use | How |
+|---|---|---|
+| Understand layout, flow, what-connects-to-what, spot visual defects | **Visual** | **Read tool** on the `.excalidraw.png` — you see the rendered pixels |
+| Read exact label text, coordinates, colors, IDs, or arrow bindings | **Extract** | `extract_scene.py` — recovers the canonical scene JSON |
+| Make an edit (move/rename/recolor/add/remove an element) | **Extract**, then edit the JSON, then re-render | see workflow below |
+| Confirm a PNG is still a round-trippable Excalidraw scene | **Extract** `--info` | prints chunk layout + element counts |
+
+**Why not just Read the PNG for edits?** The Read tool gives you pixels, not structure — label text is OCR-from-image (small/rotated text gets misread) and there are no coordinates or IDs to edit against. The embedded scene is authoritative. **Reading the PNG and hand-writing new JSON from what you *think* you saw loses the original coordinates, seeds, and bindings** — extract instead.
+
+Visual and Extract are complementary: for a substantive edit, Read the PNG once to understand the composition, then Extract to edit against the real structure.
+
+### The edit workflow
+
+```bash
+REF=.claude/skills/excalidraw-diagram/references
+
+# 1. Recover the editable scene next to the PNG (writes <name>.excalidraw)
+$REF/extract_scene.py path/to/diagram.excalidraw.png --output auto
+
+# 2. Edit path/to/diagram.excalidraw (the JSON) — same rules as authoring
+
+# 3. Re-render; this overwrites the PNG AND re-embeds the updated scene
+$REF/render_offline.py path/to/diagram.excalidraw
+```
+
+Then run the **Render & Validate** loop above (Read the new PNG, fix, repeat). Whether you commit the intermediate `.excalidraw` JSON or only the `.excalidraw.png` is a per-project choice — this repo's convention (see the project's instructions) tracks only the `.excalidraw.png`, since the scene lives inside it.
+
+### extract_scene.py quick reference
+
+```bash
+extract_scene.py <file.excalidraw.png>                 # scene JSON -> stdout
+extract_scene.py <file.excalidraw.png> --output auto    # -> sibling .excalidraw
+extract_scene.py <file.excalidraw.png> -o out.json      # -> named file ('-' = stdout)
+extract_scene.py <file.excalidraw.png> --pretty         # 2-space indented JSON
+extract_scene.py <file.excalidraw.png> --info           # chunk layout + element summary
+```
+
+Pure stdlib — no `uv`, no deps, no setup. It is the exact inverse of `render_offline.py`'s embedder and understands the encodings excalidraw.com itself writes (`bstring`/base64, compressed or raw). If a PNG has no embedded scene it exits non-zero with a clear message — that's the *"Image doesn't contain scene"* case, meaning the file was never saved as an Excalidraw scene and must be rebuilt.
 
 ---
 

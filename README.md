@@ -8,7 +8,7 @@ Compatible with any coding agent that supports skills. For agents that read from
 
 - **Diagrams that argue, not display.** Every shape/group of shapes mirrors the concept it represents — fan-outs for one-to-many, timelines for sequences, convergence for aggregation. No uniform card grids.
 - **Evidence artifacts.** As an example, technical diagrams include real code snippets and actual JSON payloads.
-- **Built-in visual validation.** A Playwright-based render pipeline lets the agent see its own output, catch layout issues (overlapping text, misaligned arrows, unbalanced spacing), and fix them in a loop before delivering.
+- **Built-in visual validation.** A fully offline render pipeline (cairosvg, no browser, no network) lets the agent see its own output, catch layout issues (overlapping text, misaligned arrows, unbalanced spacing), and fix them in a loop before delivering. Output is a `.excalidraw.png` with the editable scene embedded — drop it back into excalidraw.com and keep editing.
 - **Brand-customizable.** All colors and brand styles live in a single file (`references/color-palette.md`). Swap it out and every diagram follows your palette.
 
 ## Installation
@@ -22,19 +22,7 @@ cp -r excalidraw-diagram-skill .claude/skills/excalidraw-diagram
 
 ## Setup
 
-The skill includes a render pipeline that lets the agent visually validate its diagrams. There are two ways to set it up:
-
-**Option A: Ask your coding agent (easiest)**
-
-Just tell your agent: *"Set up the Excalidraw diagram skill renderer by following the instructions in SKILL.md."* It will run the commands for you.
-
-**Option B: Manual**
-
-```bash
-cd .claude/skills/excalidraw-diagram/references
-uv sync
-uv run playwright install chromium
-```
+No setup needed. The renderer is a PEP 723 uv-script: dependencies are declared inline and resolved into uv's cache on first invocation. You need `uv` on PATH; that's it. No `uv sync`, no browser, no `npm`.
 
 ## Usage
 
@@ -57,7 +45,5 @@ excalidraw-diagram/
     color-palette.md                # Brand colors (edit this to customize)
     element-templates.md            # JSON templates for each element type
     json-schema.md                  # Excalidraw JSON format reference
-    render_excalidraw.py            # Render .excalidraw to PNG
-    render_template.html            # Browser template for rendering
-    pyproject.toml                  # Python dependencies (playwright)
+    render_offline.py               # PEP 723 uv-script: .excalidraw -> PNG with scene embed
 ```
